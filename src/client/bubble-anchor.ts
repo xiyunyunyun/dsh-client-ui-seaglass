@@ -119,7 +119,18 @@ export function startBubbleAnchor(): () => void {
     // side (the 44px rail cannot fit a bubble; the release escapes it right).
     const bubbleCol = bubble.closest<HTMLElement>('[class*=\'sidebarCol\']')
     const bubbleFrame = bubble.closest('[data-dsh-frame]')
-    const sidebarExpanded = bubbleCol !== null && bubbleFrame !== null && !bubbleFrame.hasAttribute('data-sidebar-collapsed')
+    // The settings / marketplace pages render INSIDE the sidebar column as
+    // page-spanning overlays (VOzbGW_panel: position:relative, released
+    // overflow), so their content's tooltips — the plugin cards' download /
+    // star counts — sit hundreds of px outside the column's border box: the
+    // column clamp below slammed them against the column's right edge
+    // (measured: 246px left of and below the trigger). Dialog bubbles keep
+    // the generic trigger-anchored recipe instead: the bubble's containing
+    // block (the dialog's container-type root) only TRANSLATES the box, and
+    // the residual-error correction cancels any static offset, while the
+    // viewport clamp stays the one the app itself applies.
+    const inDialog = bubble.closest('[role="dialog"]') !== null
+    const sidebarExpanded = bubbleCol !== null && bubbleFrame !== null && !bubbleFrame.hasAttribute('data-sidebar-collapsed') && inDialog === null
     if (sidebarExpanded) {
       dx = ar.left + ar.width / 2 - (br.left + br.width / 2)
       dy = ar.bottom + EDGE_GAP - br.top

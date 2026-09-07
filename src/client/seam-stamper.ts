@@ -156,6 +156,15 @@ function stampAll(added: Element[] | null = null): void {
     stampPopoverShell(el, cs)
   }
   document.documentElement.toggleAttribute('data-dsh-popover-live', popoverLive)
+  // Floating-header offset: the float layout hangs the header card over the
+  // transcript with a hardcoded -95px/107px pair — brittle against anything
+  // that changes the header's height (the theme's own font picks, a wrapping
+  // session title, a Host update drift). Measure the live header and expose
+  // its height; the stylesheet derives both offsets from it. Headerless
+  // phases (hero) drop the variable so the stylesheet fallback applies.
+  const header = document.querySelector<HTMLElement>('[data-phase] header')
+  if (header !== null) document.documentElement.style.setProperty('--dsh-aqua-header-h', header.offsetHeight + 'px')
+  else document.documentElement.style.removeProperty('--dsh-aqua-header-h')
 }
 
 /**

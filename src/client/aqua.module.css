@@ -63,8 +63,14 @@
 }
 
 [data-dsh-float] [data-phase='active'] [data-conversation-scroll] {
-  margin-top: -95px;
-  padding-top: 107px;
+  /* Derived from the LIVE header (the stamper writes --dsh-aqua-header-h on
+     <html> every stamp pass): -12px margin − header height hangs the scroll
+     body under the card; the +24px content inset re-adds the card's 12px
+     margin plus the 12px gap the old hardcoded -95px/107px pair baked in.
+     The old pair silently broke whenever the header's height moved — the
+     theme's own font picks, a wrapping session title, Host drift. */
+  margin-top: calc(-12px - var(--dsh-aqua-header-h, 83px));
+  padding-top: calc(var(--dsh-aqua-header-h, 83px) + 24px);
 }
 
 /* ---------- Conversation scrollport hardening: the chat column must never
