@@ -397,6 +397,23 @@ export function startSpotlight(): () => void {
 
   const onMove = (event: PointerEvent): void => {
     if (!hoverGated()) return
+    // Position-based sweep: the pointer can leave the session's glass
+    // without a usable pointerout — the outgoing event fires while the
+    // cursor is still inside the pane's rect (the hovered ELEMENT changes
+    // at a child boundary before the pane's own border, or the pointer
+    // exits the window edge) and the inside() early return swallows it;
+    // every later pointermove then has its target OUTSIDE any spot and
+    // used to return before any clear — the session, radial and tilt froze
+    // at the crossing frame (the glow stuck on the sidebar report).
+    // Sweep by POSITION: outside the session's visual, the session ends no
+    // matter what the event target is now.
+    if (session !== null && !inside(session.visual, event.clientX, event.clientY)) {
+      const targetSpot = closestSpot(event.target)
+      if (targetSpot !== session.spot
+        && (targetSpot === null || (!targetSpot.contains(session.spot) && !session.spot.contains(targetSpot)))) {
+        clearSpot(session.spot)
+      }
+    }
     const spot = closestSpot(event.target)
     if (spot === null || session?.spot !== spot) return
     // The tilt stays LIVE over buttons — flattening the pane just because
@@ -417,6 +434,16 @@ export function startSpotlight(): () => void {
     // The settings overlay renders INSIDE the sidebar column: while it is
     // open, the sidebar stays out of every hover effect.
     if (spot.matches('[class*="sidebarCol"]') && document.querySelector('[role="dialog"]') !== null) return
+    // Release ANY stale session before the new one starts — including the
+    // nested handoff (sidebar → its raised button): the parent's tilt must
+    // ease home while the chain repaints its glow at the same cursor
+    // position (both writes are synchronous in this turn, so no painted
+    // frame ever shows a gap). A swallowed pointerout at a rect boundary or
+    // a removed element under the cursor used to leave the old pane's
+    // radial and tilt frozen (the stuck-glow reports).
+    if (current !== null && current !== spot) {
+      clearSpot(current, event.target)
+    }
     // Gutter/padding entries never start a session (and must not cancel a
     // pending ease-back settle), so the glass check comes first.
     const next = measure(spot)
