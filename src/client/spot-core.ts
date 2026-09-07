@@ -26,6 +26,24 @@ export function closestSpot(target: EventTarget | null): HTMLElement | null {
   return target instanceof Element ? target.closest<HTMLElement>(SPOT_SELECTOR) : null
 }
 
+/** Stamped ANCESTORS of `spot`, nearest first (excluding `spot` itself).
+ *  Spots nest — the sidebar column contains the raised new-session button,
+ *  and both carry the stamp — so a hover session on the inner pane must keep
+ *  the outer panes' glow following the cursor too, or the outer radial
+ *  freezes at its last painted position ("the glow around the button gets
+ *  stuck"). */
+export function ancestorSpots(spot: HTMLElement): HTMLElement[] {
+  const chain: HTMLElement[] = []
+  let node: HTMLElement | null = spot.parentElement
+  while (node !== null) {
+    const ancestor = node.closest<HTMLElement>(SPOT_SELECTOR)
+    if (ancestor === null) break
+    chain.push(ancestor)
+    node = ancestor.parentElement
+  }
+  return chain
+}
+
 /** Cached spot list. The seam stamper invalidates it whenever it (re)writes
  *  a spot attribute, so consumers (the overlay keeper's per-change passes,
  *  the spotlight disposer) share one document-wide query instead of several.

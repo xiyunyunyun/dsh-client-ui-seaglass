@@ -483,13 +483,17 @@ html[data-dsh-float][data-dsh-aqua-wallpaper][data-dsh-aqua-media='video'] body[
     0 10px 36px rgba(2, 6, 14, 0.5);
 }
 
-/* Fused state: once the stats line is docked underneath, the WHOLE inputbar
-   becomes ONE glass slab — a single background, blur, border and shadow on
-   the wrapper. The card and stats turn transparent inside it (their blur
-   and tone can never drift apart again); only the hairline divider at the
-   seam stays. The slab shrinks to its content width (max-content) so the
-   glass hugs the composer exactly. */
-[data-dsh-aqua][data-dsh-float] [data-dsh-inputbar]:has([data-dsh-stats]) {
+/* Glass slab: every stamped non-hero inputbar IS one glass slab from mount —
+   a single background, blur, border and shadow on the wrapper, owned for the
+   pane's whole lifetime. The stats line docks INTO it asynchronously (the
+   session payload arrives after the composer mounts); blur ownership never
+   changes hands, so the fused flip can never swap blur layers after first
+   paint — Chromium renders a freshly created backdrop layer with an empty
+   backplate for one frame, which read as the whole bar flashing transparent
+   on every session switch. The card and stats stay transparent inside the
+   slab (their blur and tone can never drift apart); the hairline divider at
+   the seam appears once stats docks. */
+[data-dsh-aqua][data-dsh-float] [data-dsh-inputbar]:not([class*='hero']) {
   width: calc(var(--dsh-chat-content-width) + 32px);
   max-width: none;
   margin: 0 auto 12px;
@@ -505,7 +509,7 @@ html[data-dsh-float][data-dsh-aqua-wallpaper][data-dsh-aqua-media='video'] body[
 }
 
 /* Same treatment as the composer card: blur on ::before, not the slab itself. */
-[data-dsh-aqua][data-dsh-float] [data-dsh-inputbar]:has([data-dsh-stats])::before {
+[data-dsh-aqua][data-dsh-float] [data-dsh-inputbar]:not([class*='hero'])::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -515,7 +519,7 @@ html[data-dsh-float][data-dsh-aqua-wallpaper][data-dsh-aqua-media='video'] body[
   pointer-events: none;
 }
 
-[data-dsh-float] body[data-ds-dark-theme] [data-dsh-inputbar]:has([data-dsh-stats]) {
+[data-dsh-float] body[data-ds-dark-theme] [data-dsh-inputbar]:not([class*='hero']) {
   border-color: rgba(148, 180, 220, 0.32);
   background: var(--dsh-aqua-glass-card-dark);
   box-shadow:
@@ -523,7 +527,7 @@ html[data-dsh-float][data-dsh-aqua-wallpaper][data-dsh-aqua-media='video'] body[
     0 10px 36px rgba(2, 6, 14, 0.5);
 }
 
-[data-dsh-float] [data-dsh-inputbar]:has([data-dsh-stats]) [data-composer-card] {
+[data-dsh-float] [data-dsh-inputbar]:not([class*='hero']) [data-composer-card] {
   border: none;
   border-radius: 0;
   background: transparent;
@@ -531,17 +535,17 @@ html[data-dsh-float][data-dsh-aqua-wallpaper][data-dsh-aqua-media='video'] body[
   backdrop-filter: none;
 }
 
-/* In the fused slab the inputbar's ::before owns the blur; the card's own
-   ::before would double-blur, so drop it there. */
-[data-dsh-float] [data-dsh-inputbar]:has([data-dsh-stats]) [data-composer-card]::before {
+/* The inputbar's ::before owns the blur; the card's own ::before would
+   double-blur, so drop it there. */
+[data-dsh-float] [data-dsh-inputbar]:not([class*='hero']) [data-composer-card]::before {
   display: none;
 }
 
-[data-dsh-float] [data-dsh-inputbar]:has([data-dsh-stats]) [data-composer-card]::after {
+[data-dsh-float] [data-dsh-inputbar]:not([class*='hero']) [data-composer-card]::after {
   display: none;
 }
 
-[data-dsh-float] [data-dsh-inputbar]:has([data-dsh-stats]) [data-dsh-stats] {
+[data-dsh-float] [data-dsh-inputbar]:not([class*='hero']) [data-dsh-stats] {
   width: 100%;
   max-width: none;
   /* Dock at the very bottom of the slab: the band's MIN height equals the
@@ -561,7 +565,7 @@ html[data-dsh-float][data-dsh-aqua-wallpaper][data-dsh-aqua-media='video'] body[
   backdrop-filter: none;
 }
 
-[data-dsh-float] body[data-ds-dark-theme] [data-dsh-inputbar]:has([data-dsh-stats]) [data-dsh-stats] {
+[data-dsh-float] body[data-ds-dark-theme] [data-dsh-inputbar]:not([class*='hero']) [data-dsh-stats] {
   border-top-color: rgba(148, 180, 220, 0.24);
 }
 
@@ -747,15 +751,12 @@ html[data-dsh-float][data-dsh-aqua-wallpaper][data-dsh-aqua-media='video'] body[
   background: transparent;
 }
 
-/* ---------- Stats line: the composer card's docked footer (original
-   styling). It shares the card's glass blur/width/border; the distinction
-   is a hairline divider at the seam plus a slightly more transparent
-   (recessed) fill. The seam itself is glued by the spotlight layer's fuse
-   strip (see below), so the two still read as one piece on screen. ---------- */
-[data-dsh-float] [data-dsh-inputbar]:not([class*='hero']) {
-  padding-bottom: 12px;
-}
-
+/* ---------- Stats line: the composer's docked footer. Inside the slab (the
+   stamped non-hero inputbar) the dock rule below turns it transparent with
+   a hairline divider at the seam — the slab owns the glass. THIS rule is
+   only the fallback for a stats band whose inputbar wrapper is momentarily
+   unstamped (never painted, thanks to the stamper's synchronous composer
+   pass): it shares the card's glass so a lag frame still reads frosted. ---------- */
 [data-dsh-float] [data-dsh-stats] {
   position: relative;
   z-index: 8;
@@ -1089,21 +1090,13 @@ html[data-dsh-float][data-dsh-aqua-wallpaper][data-dsh-aqua-media='video'] body[
   font-weight: 500;
 }
 
-/* ---------- Page-level transitions: phase flips, view tabs, entrances.
-   Container-level animations are opacity-only —a running transform would
-   re-anchor position:fixed descendants (menus/modals) mid-flight. ---------- */
-[data-dsh-float] [data-phase='hero'] {
-  animation: dsh-aqua-hero-in 0.32s var(--ds-ease-in-out);
-}
-
-[data-dsh-float] [data-phase='active'] {
-  animation: dsh-aqua-active-in 0.3s var(--ds-ease-in-out);
-}
-
-[data-dsh-float] [data-testid^='view-'] {
-  animation: dsh-aqua-view-in 0.26s var(--ds-ease-in-out);
-}
-
+/* ---------- Page-level transitions: entrances.
+   NO container-level opacity fade on the phase roots / view tabs: the
+   phase root REMOUNTS on every phase flip (新会话 → hero, first message →
+   active), and the fade replayed on the whole container — the glass panes
+   washed to transparent for ~0.3s on every switch (an opacity < 1 group is
+   also a temporary backdrop root, so the slab's blur output degraded with
+   it). Message rows and tool rows keep their own per-piece entrances. ---------- */
 /* The user message fades in WITHOUT the translateY rise: a transform makes
    the mounting row contribute to the scroll container's scrollable overflow
    for as long as the animation runs — on a tall first message (its bottom
@@ -1124,18 +1117,6 @@ html[data-dsh-float][data-dsh-aqua-wallpaper][data-dsh-aqua-media='video'] body[
    temporary backdrop root (opacity < 1) while it runs, so a frosted ::before
    would pop in the moment the fade ends — a visible flash. Panels appear
    instantly, matching the Host's own modals. */
-
-@keyframes dsh-aqua-hero-in {
-  from { opacity: 0; }
-}
-
-@keyframes dsh-aqua-active-in {
-  from { opacity: 0; }
-}
-
-@keyframes dsh-aqua-view-in {
-  from { opacity: 0; }
-}
 
 @keyframes dsh-aqua-rise {
   from { opacity: 0; transform: translateY(6px); }
@@ -1171,9 +1152,6 @@ html[data-dsh-float][data-dsh-aqua-wallpaper][data-dsh-aqua-media='video'] body[
 
 /* ---------- Reduced motion: keep the static look, drop every effect. ---------- */
 @media (prefers-reduced-motion: reduce) {
-  [data-dsh-float] [data-phase='hero'],
-  [data-dsh-float] [data-phase='active'],
-  [data-dsh-float] [data-testid^='view-'],
   [data-dsh-float] [class*='userRow'],
   [data-dsh-float] [data-tool],
   [data-dsh-float] [role='dialog'],

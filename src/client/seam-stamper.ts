@@ -76,6 +76,15 @@ const SEAMS: readonly Seam[] = [
  *  periodic full re-query as the catch-all. */
 const seamCache = new Map<Seam, HTMLElement[]>()
 
+/** Inserted subtrees matching either probe trigger a SYNCHRONOUS stamp pass.
+ *  Both mounts are rare (session switch, first load) but layout-critical:
+ *  the inputbar wrapper carries the glass slab's blur — a stamp that lands a
+ *  frame or two after first paint swaps blur layers mid-air (the composer
+ *  card's own blur is destroyed the same frame the slab's is created, and
+ *  Chromium renders a freshly created backdrop layer with an empty backplate
+ *  for one frame = the whole bar flashing transparent). */
+const SYNC_STAMP_PROBES = '[data-composer-card], [data-slot="conversation.composer.dock"] [class*="root"]'
+
 function querySeam(seam: Seam): HTMLElement[] {
   if (seam.first) {
     const el = document.querySelector<HTMLElement>(seam.selector)
@@ -357,13 +366,23 @@ export function startSeamStamper(): () => void {
   let pendingAdded: Element[] | null = null
   const observer = new MutationObserver((records) => {
     if (disposed) return
+    // Composer / stats mounts are stamped SYNCHRONOUSLY inside this callback:
+    // the rAF-coalesced pass can land one or two painted frames later, and an
+    // unstamped glass owner after first paint is exactly the transparency
+    // flash this plugin must never produce. Ordinary streaming batches only
+    // pay the cheap per-node probe below.
+    let needsSyncStamp = false
     for (const record of records) {
       for (const node of record.addedNodes) {
         if (node instanceof Element && node.isConnected) {
           (pendingAdded ??= []).push(node)
+          if (!needsSyncStamp && (node.matches(SYNC_STAMP_PROBES) || node.querySelector(SYNC_STAMP_PROBES) !== null)) {
+            needsSyncStamp = true
+          }
         }
       }
     }
+    if (needsSyncStamp) stampAll(null)
     if (scheduled !== 0) return
     scheduled = requestAnimationFrame(() => {
       scheduled = 0

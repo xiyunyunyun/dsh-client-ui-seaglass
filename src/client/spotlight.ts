@@ -20,6 +20,11 @@
  * - the sidebar NEVER tilts (its settings overlay renders inside the column
  *   and a running transform would re-anchor it — the panel traps at the
  *   column width); it keeps the glow;
+ * - spots NEST (the sidebar column contains the raised new-session button,
+ *   both stamped): a hover session on the inner pane paints the glow CHAIN —
+ *   every ancestor spot's radial follows the cursor too, so the light stays
+ *   continuous across the nested glass instead of freezing on the outer
+ *   pane;
  * - the composer bar (inputbar) DOES tilt. Tooltips that mount inside it
  *   (send/stop, context, stats — the app's viewport-anchored Fd bubbles) are
  *   re-pinned to their trigger every frame by the bubble-anchor loop, so the
@@ -40,7 +45,7 @@
  */
 import { repinPanelBubbles } from './bubble-anchor.ts'
 import {
-  closestSpot, ensureGlow, glassLocalRect, GLOW_ATTR, inside, ON_ATTR, spotElements,
+  ancestorSpots, closestSpot, ensureGlow, glassLocalRect, GLOW_ATTR, inside, ON_ATTR, spotElements,
   startOverlayKeeper, visualRect,
 } from './spot-core.ts'
 
@@ -151,6 +156,13 @@ export function startSpotlight(): () => void {
   /** Inputbar popovers already revealed after a glide-back (element-keyed:
    *  a React rerender must not restart their fade-in). */
   const revealed = new WeakSet<HTMLElement>()
+  /** Panes currently carrying a painted glow radial, innermost first: the
+   *  hover session plus every spot-ancestor it sits in. Nested panes — the
+   *  sidebar column and the raised new-session button inside it — EACH own
+   *  a glow overlay, and a session on the inner pane writes only the
+   *  innermost one; without the chain the outer radial froze at its last
+   *  painted position (the "glow stuck around the button" bug). */
+  let glowChain: SpotSession[] = []
 
   /** Ease a pressed pane back to neutral, then drop the inline transform. */
   const easeBack = (spot: HTMLElement): void => {
@@ -173,14 +185,25 @@ export function startSpotlight(): () => void {
     settle.set(spot, id)
   }
 
-  /** Drop every effect this controller wrote onto a pane. */
-  const clearSpot = (spot: HTMLElement): void => {
+  /** Drop every effect this controller wrote onto a pane. `incoming` is the
+   *  pointer's next target when leaving (pointerout relatedTarget): chain
+   *  panes the incoming hover still sits in keep their radial — the handoff
+   *  repaints them at the same cursor position, so a nested handoff
+   *  (button ↔ sidebar) never flickers. */
+  const clearSpot = (spot: HTMLElement, incoming: EventTarget | null = null): void => {
     spot.removeAttribute(ON_ATTR)
     if (current === spot) {
       current = null
       session = null
       lastPointer = null
     }
+    const incomingSpot = closestSpot(incoming)
+    for (const s of glowChain) {
+      if (incomingSpot !== null && s.spot.contains(incomingSpot)) continue
+      s.spot.removeAttribute(ON_ATTR)
+      if (s.glow !== null) s.glow.style.removeProperty('background-image')
+    }
+    glowChain = []
     const glow = spot.querySelector<HTMLElement>(`:scope > [${GLOW_ATTR}]`)
     if (glow !== null) glow.style.removeProperty('background-image')
     // Inputbar popovers own their visibility (tooltips unmount on leave;
@@ -229,6 +252,38 @@ export function startSpotlight(): () => void {
     return { spot, visual, local, glow }
   }
 
+  /** Rebuild the painted-glow chain for the active session: the session pane
+   *  plus every spot-ancestor it sits in. Panes that left the chain lose
+   *  their radial and marker; with a pointer position every chain radial is
+   *  repainted against it — the keeper's refresh path needs that repaint,
+   *  since a moved glow box without a repainted radial misplaces the light
+   *  by exactly the box shift. */
+  const syncChain = (remeasure: boolean, pointer: { x: number; y: number } | null): void => {
+    if (session === null || !glowGated()) {
+      for (const s of glowChain) {
+        s.spot.removeAttribute(ON_ATTR)
+        if (s.glow !== null) s.glow.style.removeProperty('background-image')
+      }
+      glowChain = []
+      return
+    }
+    const want = [session.spot, ...ancestorSpots(session.spot)]
+    for (const s of glowChain) {
+      if (want.includes(s.spot)) continue
+      s.spot.removeAttribute(ON_ATTR)
+      if (s.glow !== null) s.glow.style.removeProperty('background-image')
+    }
+    const next: SpotSession[] = []
+    for (const spot of want) {
+      let s = spot === session.spot ? session : glowChain.find((c) => c.spot === spot)
+      if (s === undefined || remeasure) s = measure(spot)
+      spot.setAttribute(ON_ATTR, '')
+      if (s.glow !== null && pointer !== null) writeGlow(s, pointer.x, pointer.y)
+      next.push(s)
+    }
+    glowChain = next
+  }
+
   /** Write the glow gradient and/or the tilt transform for the pointer position. */
   const paint = (s: SpotSession, clientX: number, clientY: number): void => {
     if (raf !== 0) return
@@ -249,10 +304,21 @@ export function startSpotlight(): () => void {
         // Toggle flipped on mid-hover: late-bind the glow overlay.
         s = session = measure(spot)
         glow = s.glow
+        // The chain members were measured glow-less; rebuild so the nested
+        // ancestors light up together with the session pane.
+        syncChain(true, { x: clientX, y: clientY })
       }
       if (glow !== null) {
         lastPointer = { x: clientX, y: clientY }
         writeGlow(s, clientX, clientY)
+        // Chain ancestors: the light follows the cursor across every nested
+        // pane — the session's own overlay only covers the session pane's
+        // box (the button's glow alone never reaches the sidebar glass
+        // around it).
+        for (const c of glowChain) {
+          if (c.spot === s.spot || c.glow === null) continue
+          writeGlow(c, clientX, clientY)
+        }
       }
       if (tiltGated() && tiltable(spot)) {
         // Normalized cursor offset from the glass center, clamped to ±0.5 —
@@ -370,6 +436,10 @@ export function startSpotlight(): () => void {
     // pointer stationary since entry (lastPointer null) the radial would
     // never paint at all (the "glow stuck" report).
     lastPointer = { x: event.clientX, y: event.clientY }
+    // Build the glow chain (session pane + its spot-ancestors) and paint
+    // every radial at the entry position — the chain must not wait for the
+    // queued paint below (which a keeper refresh may supersede).
+    syncChain(true, lastPointer)
     paint(next, event.clientX, event.clientY)
   }
 
@@ -377,9 +447,11 @@ export function startSpotlight(): () => void {
     const spot = closestSpot(event.target)
     if (spot === null || spot !== current) return
     // Moving between children keeps the effects live; leaving the visible
-    // glass (including into the wrapper's gutters) clears them.
+    // glass (including into the wrapper's gutters) clears them. The handoff
+    // target keeps its chain painted (see clearSpot) so nested handoffs
+    // don't flicker.
     if (session !== null && inside(session.visual, event.clientX, event.clientY)) return
-    clearSpot(spot)
+    clearSpot(spot, event.relatedTarget)
   }
 
   // The glow divs live with the panes through React re-renders; DOM/layout
@@ -394,7 +466,10 @@ export function startSpotlight(): () => void {
     for (const spot of spotElements()) {
       if (!spot.matches('[class*="sidebarCol"]')) continue
       if (spot.querySelector('[role="dialog"]') === null) continue
-      spot.removeAttribute(ON_ATTR)
+      // Only the HOVERED pane loses its glow marker: a nested session (the
+      // new-session button) keeps the column's chain glow alive — the light
+      // sits behind the dialog's deepened backdrop and stays on the cursor.
+      if (current === spot) spot.removeAttribute(ON_ATTR)
       const id = settle.get(spot)
       if (id !== undefined) {
         clearTimeout(id)
@@ -408,6 +483,11 @@ export function startSpotlight(): () => void {
       spot.style.removeProperty('transition')
       repinPanelBubbles()
       if (current === spot) {
+        for (const s of glowChain) {
+          if (s.spot !== spot) continue
+          if (s.glow !== null) s.glow.style.removeProperty('background-image')
+        }
+        glowChain = glowChain.filter((s) => s.spot !== spot)
         current = null
         session = null
       }
@@ -471,6 +551,10 @@ export function startSpotlight(): () => void {
       // 79px the instant a composer menu opened under a resting cursor).
       // Repaint against the last pointer so box and radial never disagree.
       if (lastPointer !== null) writeGlow(session, lastPointer.x, lastPointer.y)
+      // The same box shift can move ANY chain member (the sidebar column
+      // resizes, the button shifts): re-measure the ancestors and repaint
+      // their radials against the last pointer too.
+      syncChain(true, lastPointer)
     })
   })
 
@@ -487,6 +571,7 @@ export function startSpotlight(): () => void {
     if (refreshRaf !== 0) cancelAnimationFrame(refreshRaf)
     for (const id of settle.values()) clearTimeout(id)
     settle.clear()
+    glowChain = []
     for (const spot of spotElements()) {
       spot.removeAttribute(ON_ATTR)
       if (tilted.has(spot)) {

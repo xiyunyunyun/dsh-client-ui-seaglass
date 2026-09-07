@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### v1.6.5
+
+- **修复：切换会话瞬间主输入栏玻璃整栏变透明（两层机制）**——其一，玻璃板（盖章的非 hero 输入栏）原先 gated 在 `:has([data-dsh-stats])` 上，会话数据异步加载使 stats 行晚于 composer 挂载，数据到达瞬间融合规则翻真、模糊所有权同帧换手：卡片自己的 `::before` 模糊被 `display:none` 销毁、玻璃板的模糊层同帧新建，Chromium 对新建 backdrop 层当帧背板未就绪 → 整栏无模糊一帧（低 frost 下读作全透明）。修复：模糊所有权从挂载起固定——盖章的非 hero 输入栏**始终**是玻璃板（填充+模糊+边框），`:has` 门控全部移除，stats 行只是异步停靠进已存在的玻璃，任何时刻不再换手；hero 新会话态保持原卡片玻璃
+- **修复：composer/stats 挂载的盖章滞后窗口**——盖章 pass 走 rAF 合并批次，composer 重挂载（切会话/初次加载）后新包装器可滞后 1-2 个绘制帧才拿到 `data-dsh-inputbar`，玻璃归属晚一帧同样触发换手。修复：stamper 在 MutationObserver 回调内检测到 composer 卡片或 stats dock 插入时**同步**跑完整盖章（稀有事件，流式批次只付廉价的 per-node 探测），玻璃所有者从首个绘制帧起就位
+- **修复：移除 phase/view 容器级入场透明度动画**——点击"新建会话"（active→hero）时 phase 根整体重挂载，`dsh-aqua-hero-in`/`dsh-aqua-active-in`/`dsh-aqua-view-in`（0.26-0.32s 透明度 0→1）随之重放，实测新 phase 根挂载后 opacity=0：整个画面连同输入卡一起从透明淡入（与对话框入场动画因同类问题移除的先例一致——opacity<1 的分组还是临时 backdrop root）。移除三个容器级淡入及 keyframes，消息行/工具行等个体入场保留；实测新建会话、hero↔active 双向切换 phase 根零透明度下降、零动画重放
+- **修复：嵌套面板辉光跟随（"新会话"按钮矩形外的辉光卡住）**——侧栏列与"新会话"按钮是嵌套的两个 spot（按钮经 `data-dsh-surface` 也带 spot 章），悬停按钮时会话切到内层、onMove 只写内层自己的辉光叠层，外层侧栏的径向渐变冻结在进入前的位置。修复：新增 `ancestorSpots` + 辉光链——会话面板及其全部 spot 祖先的径向都随光标重写（各自坐标系）；pointerout 按 relatedTarget 感知交接，链上被来者覆盖的面板保持绘制（嵌套交接零闪烁）；keeper 刷新/辉光开关翻转/清理路径全链覆盖；侧栏弹窗强制释放只剥被悬停面板的标记。实测：按钮内移动侧栏径向同步跟随、双向交接无闪烁、离开清理干净
+
 ### v1.6.4
 
 - **修复：点击输入栏统计按钮时背景流体卡顿**——body 级弹层（用量/用时/上下文面板）每次开与关都全局翻转 `<html>` 的 `data-dsh-popover-live`（裁剪开关总闸），把所有倾斜窗格子树标脏，实测强制 ~90ms 样式重算+重排（trace 两次归因于 stamper 的 popover 循环），流体 30fps 一次停 3-4 帧。修复：翻转收窄到真正位于 spot 内部的弹层（`el.closest('[data-dsh-aqua-spot]')`）——overflow 裁剪只可能影响 spot 自己的后代，body 级门户弹层永远不会被裁剪、无须翻闸；A/B 实测预置闸后长任务归零，设置对话框（侧栏内）的豁免行为完整保留
