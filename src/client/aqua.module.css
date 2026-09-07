@@ -1441,6 +1441,19 @@ html[data-dsh-float][data-dsh-aqua-wallpaper][data-dsh-aqua-media='video'] body[
   overflow: visible !important;
 }
 
+/* Pinned panel bubbles: the Host re-writes the bubble's inline left/top
+   EVERY frame while mounted (spring-follow positioning), and its rAF
+   writer runs after the controller's — plain inline pin writes always
+   lost the race (the sidebar toggle's tooltip snapped back to the app's
+   side=right spot and poked past the column's clip). An author-level
+   !important rule fed by custom properties outranks the app's inline
+   normal declarations AND is untouchable by them: the controller owns
+   the bubble's position for as long as it carries the marker. */
+[data-dsh-aqua] [data-dsh-aqua-pinned] {
+  left: var(--dsh-aqua-pin-x) !important;
+  top: var(--dsh-aqua-pin-y) !important;
+}
+
 [data-dsh-aqua] [role='tooltip'] {
   color: #1a2438;
 }

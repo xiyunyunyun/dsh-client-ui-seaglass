@@ -130,7 +130,7 @@ export function startBubbleAnchor(): () => void {
     // the residual-error correction cancels any static offset, while the
     // viewport clamp stays the one the app itself applies.
     const inDialog = bubble.closest('[role="dialog"]') !== null
-    const sidebarExpanded = bubbleCol !== null && bubbleFrame !== null && !bubbleFrame.hasAttribute('data-sidebar-collapsed') && inDialog === null
+    const sidebarExpanded = bubbleCol !== null && bubbleFrame !== null && !bubbleFrame.hasAttribute('data-sidebar-collapsed') && !inDialog
     if (sidebarExpanded) {
       dx = ar.left + ar.width / 2 - (br.left + br.width / 2)
       dy = ar.bottom + EDGE_GAP - br.top
@@ -151,13 +151,20 @@ export function startBubbleAnchor(): () => void {
     const vw = window.innerWidth
     if (br.right + dx > vw - VIEWPORT_MARGIN) dx = vw - VIEWPORT_MARGIN - br.right
     if (br.left + dx < VIEWPORT_MARGIN) dx = VIEWPORT_MARGIN - br.left
-    const curLeft = Number.parseFloat(bubble.style.left)
-    const curTop = Number.parseFloat(bubble.style.top)
+    // The base for the correction is whatever the cascade CURRENTLY
+    // applies: the pin custom props once pinned, the app's inline before
+    // the first pin. Mixing the app's (still per-frame drifting) inline
+    // with a pinned state would converge the bubble onto the container
+    // offset instead of the trigger.
+    const pinned = bubble.hasAttribute('data-dsh-aqua-pinned')
+    const curLeft = Number.parseFloat(pinned ? bubble.style.getPropertyValue('--dsh-aqua-pin-x') : bubble.style.left)
+    const curTop = Number.parseFloat(pinned ? bubble.style.getPropertyValue('--dsh-aqua-pin-y') : bubble.style.top)
     if (!Number.isFinite(curLeft) || !Number.isFinite(curTop)) return
     const nextLeft = `${curLeft + dx}px`
     const nextTop = `${curTop + dy}px`
-    if (bubble.style.left !== nextLeft) bubble.style.left = nextLeft
-    if (bubble.style.top !== nextTop) bubble.style.top = nextTop
+    if (bubble.getAttribute('data-dsh-aqua-pinned') === null) bubble.setAttribute('data-dsh-aqua-pinned', '')
+    if (bubble.style.getPropertyValue('--dsh-aqua-pin-x') !== nextLeft) bubble.style.setProperty('--dsh-aqua-pin-x', nextLeft)
+    if (bubble.style.getPropertyValue('--dsh-aqua-pin-y') !== nextTop) bubble.style.setProperty('--dsh-aqua-pin-y', nextTop)
   }
 
   const step = (): void => {
@@ -240,11 +247,12 @@ export function startBubbleAnchor(): () => void {
     raf = 0
     document.removeEventListener('pointerover', onOver, { capture: true })
     document.removeEventListener('pointerout', onOut, { capture: true })
-    for (const bubble of document.querySelectorAll<HTMLElement>('[role="tooltip"]')) {
-      if (bubble.closest(PANEL_SELECTOR) !== null) {
-        bubble.style.removeProperty('translate')
-        bubble.style.removeProperty('transition')
-      }
+    for (const bubble of document.querySelectorAll<HTMLElement>('[data-dsh-aqua-pinned]')) {
+      bubble.removeAttribute('data-dsh-aqua-pinned')
+      bubble.style.removeProperty('--dsh-aqua-pin-x')
+      bubble.style.removeProperty('--dsh-aqua-pin-y')
+      bubble.style.removeProperty('translate')
+      bubble.style.removeProperty('transition')
     }
   }
 }
