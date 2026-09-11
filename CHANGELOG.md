@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### v1.6.7
+
+- **适配：DSH `0.1.5-rc.1`**——逐项核对新版客户端面，源码零改动：客户端 shell 模块表仍内置 `@deepseek-ai/dsh-client-store`（`defineStore({ init, actions })` 形状不变）与 `@deepseek-ai/dsh-client-ui-slots`（`ctx.slots.inject/register` 槽位协议不变）；`ctx.theme`（`getTheme().active.colorScheme`、`theme/change`）与 `overrideTokens(source, tokens)` 的 `{ light, dark }` 成对值校验同现签名一致（主题本就按成对值编写）；`ctx.locale.register/bind`、`ctx.settingsScope.bind`、服务端 `settings.register(ns, schema)`、`@deepseek-ai/dsh-invariants` 的 `InvariantInstaller` 全部未变；`dsh.bundle.patch`（cordis.patch.yml）与 `dsh.client`（platform/inject）声明机制仍在；主题覆盖的 `--dsw-alias-*` 别名 token 在新版样式表中全部存在；schemastery 同为 3.18.2。peerDependencies 升级为 `^0.1.5-rc.2`（semver 的 prerelease 匹配规则使 `^0.1.2-rc.1` 不满足 0.1.5-rc.2——prerelease 只匹配同 `[major, minor, patch]` 元组；peer 均为 optional，旧宿主下解析失败也不阻塞安装），README 适配版本标注同步
+
 ### v1.6.6
 
 - **修复：设置/插件市场面板内的 tooltip 被钉位夹进 256px 侧栏列**——插件卡片下载量/星星数的精确数字气泡（`[role=tooltip]`，视口锚定）挂在市场面板（侧栏列的 DOM 后代、`position:relative` 页面级浮层）里，而 bubble-anchor 的"展开侧栏"分支把栏内所有气泡一律强制"触发器下方+夹紧进列边框盒 ±8px"——触发器在列外数百 px 时气泡被右缘夹紧规则钉到列边（实测距触发器 -246px 且上下翻转）。修复：对话框内的气泡排除出该分支，走通用触发器锚定配方——钉位的增量校正式（实测当前框→抵消残差）天然抵消其容器型包含块的静态偏移，视口夹紧与应用自身一致；实测气泡精确居中触发器上方（-246px → -5px），侧栏按钮气泡的原有行为（下方+列内）不变

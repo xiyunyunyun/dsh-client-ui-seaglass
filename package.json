@@ -1,7 +1,7 @@
 {
   "name": "dsh-client-ui-seaglass",
   "description": "Seaglass: a highly customizable glassmorphism theme for the Web surface — adjustable blur, frost, fluid or wallpaper backdrop, unified corners, and motion",
-  "version": "1.6.6",
+  "version": "1.6.7",
   "publishConfig": {
     "access": "public"
   },
@@ -48,12 +48,12 @@
   "license": "MIT",
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-client-locale": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-client-store": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-client-ui-settings": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-client-ui-theme": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-invariants": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-settings": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-locale": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-store": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-ui-settings": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-ui-theme": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-invariants": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-settings": "^0.1.5-rc.2",
     "react": "^18.2.0"
   },
   "peerDependenciesMeta": {
